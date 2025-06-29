@@ -102,3 +102,49 @@ func Append(bot *tgbotapi.BotAPI, update tgbotapi.Update, usrSession *session.Se
 		panic(err)
 	}
 }
+
+// Функция для отправки уведомления в один чат
+func sendTelegramNotification(bot *tgbotapi.BotAPI, chatID int64, message string) error {
+	// Здесь реализация отправки через Telegram Bot API
+	// Например, используя github.com/go-telegram-bot-api/telegram-bot-api
+	msg := tgbotapi.NewMessage(chatID, "Заполните дневник")
+	if _, err := bot.Send(msg); err != nil {
+		panic(err)
+	}
+	//fmt.Printf("Отправляю уведомление в чат %d: %s\n", chatID, message)
+	return nil
+}
+
+// Функция для отправки всем чатам
+func notifyAllChats(bot *tgbotapi.BotAPI) {
+	chatIds, err := repositories.GetAllIds()
+	if err != nil {
+		fmt.Printf("Ошибка получения chat_ids: %v\n", err)
+		return
+	}
+
+	message := "Ваше регулярное уведомление" // Текст уведомления
+
+	for _, chatID := range chatIds {
+		if err := sendTelegramNotification(bot, chatID, message); err != nil {
+			fmt.Printf("Ошибка отправки в чат %d: %v\n", chatID, err)
+		}
+		time.Sleep(500 * time.Millisecond) // Небольшая задержка между сообщениями
+	}
+}
+
+func StartNotificationScheduler(bot *tgbotapi.BotAPI) {
+	ticker := time.NewTicker(30 * time.Minute)
+	defer ticker.Stop()
+
+	// Первый запуск сразу
+	notifyAllChats(bot)
+
+	for range ticker.C {
+		notifyAllChats(bot)
+	}
+}
+
+//func RemindAboutDiary() {
+//	chats :=
+//}

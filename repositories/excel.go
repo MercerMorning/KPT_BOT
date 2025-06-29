@@ -23,3 +23,12 @@ func GetExcel(chatId int64) (models.Sheet, error) {
 	}
 	return excel, nil
 }
+
+func GetAllIds() ([]int64, error) {
+	var chatIds []int64
+	err := DB.Model(&models.Sheet{}).Pluck("chat_id", &chatIds).Error
+	if err != nil {
+		return nil, err
+	}
+	return chatIds, nil
+}

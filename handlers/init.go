@@ -14,6 +14,8 @@ func Init(bot *tgbotapi.BotAPI) {
 	usrSessions := map[int64]*session.Session{}
 	updates := bot.GetUpdatesChan(u)
 
+	go services.StartNotificationScheduler(bot)
+
 	for update := range updates {
 		usrSession, ok := usrSessions[update.Message.Chat.ID]
 		if !ok {
@@ -29,9 +31,13 @@ func Init(bot *tgbotapi.BotAPI) {
 			usrSessions[update.Message.Chat.ID] = usrSession
 		}
 
-		//if usrSession.Code != "" && usrSession.Stage == session.Start {
-		//	usrSession.Stage = session.WritingDiarySituation
-		//}
+		if usrSession.Code != "" && usrSession.Stage == session.Start {
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Опишите ситуацию")
+			if _, err := bot.Send(msg); err != nil {
+				panic(err)
+			}
+			usrSession.Stage = session.WritingDiarySituation
+		}
 
 		if update.CallbackQuery != nil {
 			//Callbacks(bot, update)
@@ -90,6 +96,7 @@ func Init(bot *tgbotapi.BotAPI) {
 					panic(err)
 				}
 			case session.WritingDiaryAction:
+				usrSession.Diary.Action = update.Message.Text
 				services.Append(bot, update, usrSession)
 			default:
 				fmt.Println("Default")

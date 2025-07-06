@@ -9,10 +9,19 @@ func SetExcel(chatId int64, token string, sheet string) error {
 		ChatId:  chatId,
 		Code:    token,
 		SheetId: sheet,
+		Range:   60,
 	}
 	if result := DB.Create(&task); result.Error != nil {
 		return result.Error
 	}
+	return nil
+}
+
+func ChangeTable(chatId int64, sheet string) error {
+	task := models.Sheet{
+		ChatId: chatId,
+	}
+	DB.Model(&task).Update("SheetId", sheet)
 	return nil
 }
 

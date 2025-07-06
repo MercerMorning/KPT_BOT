@@ -13,5 +13,7 @@ func Commands(bot *tgbotapi.BotAPI, update tgbotapi.Update, session *session.Ses
 		services.Start(bot, update, session)
 	case "write":
 		services.Write(bot, update, session)
+	case "change":
+		services.RequestChangeTable(bot, update, session)
 	}
 }

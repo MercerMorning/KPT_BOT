@@ -8,10 +8,9 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-func Init(bot *tgbotapi.BotAPI) {
+func Init(bot *tgbotapi.BotAPI, usrSessions map[int64]*session.Session) {
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
-	usrSessions := map[int64]*session.Session{}
 	updates := bot.GetUpdatesChan(u)
 
 	go services.StartNotificationScheduler(bot)
@@ -45,6 +44,13 @@ func Init(bot *tgbotapi.BotAPI) {
 			Commands(bot, update, usrSession)
 		} else {
 			switch usrSession.Stage {
+			case session.ChangeTable:
+				services.ChangeTable(update, usrSession)
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Опишите ситуацию")
+				if _, err := bot.Send(msg); err != nil {
+					panic(err)
+				}
+				usrSession.Stage = session.WritingDiarySituation
 			case session.Start:
 				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Выберите команду")
 				if _, err := bot.Send(msg); err != nil {
@@ -52,8 +58,8 @@ func Init(bot *tgbotapi.BotAPI) {
 				}
 			case session.RequestGoogleSheetsApiKey:
 				services.GetCodeFromWeb(bot, update, usrSession)
-			case session.ReceiveGoogleSheetsApiKey:
-				services.InitTable(bot, update, usrSession)
+			//case session.ReceiveGoogleSheetsApiKey:
+			//	services.InitTable(bot, update, usrSession)
 			case session.WritingDiarySituation:
 				usrSession.Diary.Situation = update.Message.Text
 				usrSession.Stage = session.WritingDiaryThought

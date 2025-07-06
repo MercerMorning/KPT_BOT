@@ -25,4 +25,5 @@ const (
 	WritingDiaryEmotion       = 6
 	WritingDiaryFeeling       = 7
 	WritingDiaryAction        = 8
+	ChangeTable               = 9
 )

@@ -1,7 +1,9 @@
 package clients
 
 import (
+	"KPT_BOT/config"
 	"context"
+	"encoding/json"
 	"fmt"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"golang.org/x/oauth2"
@@ -10,11 +12,48 @@ import (
 	"google.golang.org/api/sheets/v4"
 	"log"
 	"os"
+	"strconv"
 )
 
 type SheetsClient struct {
+	Code   string
 	Bot    *tgbotapi.BotAPI
 	Update tgbotapi.Update
+	ChatId int64
+}
+
+type GoogleOAuthCredentials struct {
+	Installed struct {
+		ClientID                string   `json:"client_id"`
+		ProjectID               string   `json:"project_id"`
+		AuthURI                 string   `json:"auth_uri"`
+		TokenURI                string   `json:"token_uri"`
+		AuthProviderX509CertURL string   `json:"auth_provider_x509_cert_url"`
+		ClientSecret            string   `json:"client_secret"`
+		RedirectURIs            []string `json:"redirect_uris"`
+	} `json:"installed"`
+}
+
+func (gc *SheetsClient) getConfig() *oauth2.Config {
+	b, err := os.ReadFile("credentials.json")
+	if err != nil {
+		log.Fatalf("Unable to read client secret file: %v", err)
+	}
+	creds := GoogleOAuthCredentials{}
+	json.Unmarshal(b, &creds)
+	creds.Installed.RedirectURIs = []string{
+		"http://" + config.Config("HOST") + ":" + config.Config("PORT") + "/" + strconv.FormatInt(gc.ChatId, 10),
+	}
+	b, err = json.Marshal(creds)
+	if err != nil {
+		panic(err)
+	}
+	// If modifying these scopes, delete your previously saved token.json.
+	config, err := google.ConfigFromJSON(b, "https://www.googleapis.com/auth/spreadsheets")
+	if err != nil {
+		log.Fatalf("Unable to parse client secret file to config: %v", err)
+	}
+	return config
 }
 
 func (gc *SheetsClient) getTokenFromWeb(config *oauth2.Config) {
@@ -29,7 +68,7 @@ func (gc *SheetsClient) getTokenFromWeb(config *oauth2.Config) {
 }
 
 func (gc *SheetsClient) getTokenFromWebWithCode(config *oauth2.Config) *oauth2.Token {
-	authCode := gc.Update.Message.Text
+	authCode := gc.Code
 	tok, err := config.Exchange(context.TODO(), authCode)
 	if err != nil {
 		fmt.Printf("Unable to retrieve token from web: %v", err)
@@ -38,56 +77,17 @@ func (gc *SheetsClient) getTokenFromWebWithCode(config *oauth2.Config) *oauth2.T
 }
 
 func (gc *SheetsClient) RequestCode() {
-	b, err := os.ReadFile("credentials.json")
-	if err != nil {
-		log.Fatalf("Unable to read client secret file: %v", err)
-	}
-
-	// If modifying these scopes, delete your previously saved token.json.
-	config, err := google.ConfigFromJSON(b, "https://www.googleapis.com/auth/spreadsheets")
-	if err != nil {
-		log.Fatalf("Unable to parse client secret file to config: %v", err)
-	}
-
-	// The file token.json stores the user's access and refresh tokens, and is
-	// created automatically when the authorization flow completes for the first
-	// time.
-	gc.getTokenFromWeb(config)
+	gc.getTokenFromWeb(gc.getConfig())
 }
 
 func (gc *SheetsClient) GetToken() *oauth2.Token {
-	b, err := os.ReadFile("credentials.json")
-	if err != nil {
-		log.Fatalf("Unable to read client secret file: %v", err)
-	}
-
-	// If modifying these scopes, delete your previously saved token.json.
-	config, err := google.ConfigFromJSON(b, "https://www.googleapis.com/auth/spreadsheets")
-	if err != nil {
-		log.Fatalf("Unable to parse client secret file to config: %v", err)
-	}
-
-	// The file token.json stores the user's access and refresh tokens, and is
-	// created automatically when the authorization flow completes for the first
-	// time.
-	return gc.getTokenFromWebWithCode(config)
-	//
-	//fmt.Println("macode")
-	//fmt.Println(tok)
-	//return config.Client(context.Background(), tok)
+	return gc.getTokenFromWebWithCode(gc.getConfig())
 
 }
 
 func (gc *SheetsClient) InitTable(tok *oauth2.Token, spreadsheetId string) {
-	b, err := os.ReadFile("credentials.json")
-	if err != nil {
-		log.Fatalf("Unable to read client secret file: %v", err)
-	}
-
 	// If modifying these scopes, delete your previously saved token.json.
-	config, err := google.ConfigFromJSON(b, "https://www.googleapis.com/auth/spreadsheets")
-
-	client := config.Client(context.Background(), tok)
+	client := gc.getConfig().Client(context.Background(), tok)
 
 	ctx := context.Background()
 	srv, err := sheets.NewService(ctx, option.WithHTTPClient(client))
@@ -114,20 +114,11 @@ func (gc *SheetsClient) InitTable(tok *oauth2.Token, spreadsheetId string) {
 }
 
 func (gc *SheetsClient) Append(tok *oauth2.Token, spreadsheetId string, data []string) {
-	b, err := os.ReadFile("credentials.json")
-	if err != nil {
-		log.Fatalf("Unable to read client secret file: %v", err)
-	}
-
-	// If modifying these scopes, delete your previously saved token.json.
-	config, err := google.ConfigFromJSON(b, "https://www.googleapis.com/auth/spreadsheets")
-
-	client := config.Client(context.Background(), tok)
+	client := gc.getConfig().Client(context.Background(), tok)
 
 	ctx := context.Background()
 	srv, err := sheets.NewService(ctx, option.WithHTTPClient(client))
-	srv2 := sheets.NewSpreadsheetsService(srv)
-	fmt.Println(srv2)
+
 	if err != nil {
 		log.Fatalf("Unable to retrieve Sheets client: %v", err)
 	}

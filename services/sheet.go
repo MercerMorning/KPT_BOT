@@ -29,28 +29,48 @@ func Write(bot *tgbotapi.BotAPI, update tgbotapi.Update, usrSession *session.Ses
 	}
 }
 
+func RequestChangeTable(bot *tgbotapi.BotAPI, update tgbotapi.Update, usrSession *session.Session) {
+	usrSession.Stage = session.ChangeTable
+
+	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Введите новую таблицу")
+	if _, err := bot.Send(msg); err != nil {
+		panic(err)
+	}
+}
+
+func ChangeTable(update tgbotapi.Update, usrSession *session.Session) {
+	usrSession.Stage = session.ChangeTable
+	err := repositories.ChangeTable(update.Message.Chat.ID, update.Message.Text)
+	if err != nil {
+		panic(err)
+	}
+}
+
 func GetCodeFromWeb(bot *tgbotapi.BotAPI, update tgbotapi.Update, usrSession *session.Session) {
 	usrSession.SheetId = update.Message.Text
 	gs := clients.SheetsClient{
 		Update: update,
 		Bot:    bot,
+		ChatId: update.Message.Chat.ID,
 	}
 	gs.RequestCode()
 	usrSession.Stage = session.ReceiveGoogleSheetsApiKey
 }
 
-func InitTable(bot *tgbotapi.BotAPI, update tgbotapi.Update, usrSession *session.Session) {
+func InitTable(code string, bot *tgbotapi.BotAPI, chatId int64, usrSession *session.Session) {
 	gs := clients.SheetsClient{
-		Update: update,
+		Code: code,
+		//Update: update,
 		Bot:    bot,
+		ChatId: chatId,
 	}
 	tok := gs.GetToken()
 	token, err := json.Marshal(tok)
 	if err != nil {
 		fmt.Printf("Unable to marshall token: %v", err)
 	}
-
-	err = repositories.SetExcel(update.Message.Chat.ID, string(token), usrSession.SheetId)
+	fmt.Println("after get token")
+	err = repositories.SetExcel(chatId, string(token), usrSession.SheetId)
 
 	if err != nil {
 		fmt.Printf("Unable to set excel: %v", err)
@@ -60,7 +80,7 @@ func InitTable(bot *tgbotapi.BotAPI, update tgbotapi.Update, usrSession *session
 
 	usrSession.Stage = session.WritingDiarySituation
 
-	msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Опишите ситуацию")
+	msg := tgbotapi.NewMessage(chatId, "Опишите ситуацию")
 	if _, err := bot.Send(msg); err != nil {
 		panic(err)
 	}
@@ -70,6 +90,7 @@ func Append(bot *tgbotapi.BotAPI, update tgbotapi.Update, usrSession *session.Se
 	gs := clients.SheetsClient{
 		Update: update,
 		Bot:    bot,
+		ChatId: update.Message.Chat.ID,
 	}
 	token := usrSession.Code
 	tok := oauth2.Token{}
